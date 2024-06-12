@@ -7,5 +7,9 @@ const authRole = {
   ADMIN: "admin",
   VISITOR: "visitor"
 };
+const babyGender = {
+  GIRL: "girl",
+  BOY: "boy"
+};
 
-module.exports = { authProvider, authRole };
+module.exports = { authProvider, authRole, babyGender };

@@ -1,22 +1,13 @@
 const mysql = require("mysql2");
 const dotenv = require("dotenv").config();
+const CONT = require("../utils/getAuthConst");
+const { connections } = require("../database/connDB");
+const { newUser } = require("../database/userDB");
+const { newBaby } = require("../database/babyDB");
+const { setImage } = require("../database/imageDB");
 
-const configDB = [
-  {
-    host: process.env.MYSQL_HOST,
-    user: process.env.MYSQL_USER,
-    password: process.env.MYSQL_PASSWORD,
-    database: process.env.MYSQL_DATABASE //myBaby
-  },
-  {
-    host: process.env.RDS_HOST_1,
-    user: process.env.RDS_USER_1,
-    password: process.env.RDS_PASSWORD_1,
-    database: process.env.MYSQL_DATABASE //myBaby
-  }
-];
-
-const pool = mysql.createPool(configDB[0]).promise();
+// const pool = mysql.createPool(configDB[0]).promise();
+const pool = connections[0];
 
 async function createUserTable() {
   const userTable = await pool.query(
@@ -47,10 +38,10 @@ async function createBabyTable() {
   );
   if (babyTable) console.log("babyTable is ready for service.");
 }
-
 async function createFollowTable() {
   const followTable = await pool.query(
     `CREATE TABLE IF NOT EXISTS \`follows\` (
+                \`id\` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Follow id',
                 \`user_id\` BIGINT UNSIGNED NOT NULL COMMENT 'User id',
                 \`baby_id\` BIGINT UNSIGNED NOT NULL COMMENT 'Baby id',
                 UNIQUE KEY (user_id, baby_id)
@@ -65,9 +56,48 @@ async function createImageTable() {
                   \`user_id\` BIGINT UNSIGNED NOT NULL COMMENT 'User id',
                   \`baby_id\` BIGINT UNSIGNED NOT NULL COMMENT 'Baby id',
                   \`tag\` VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'Image tag',
-                  \`directory\` VARCHAR(255) NOT NULL COMMENT 'Image directory in S3',
+                  \`key\` VARCHAR(255) NOT NULL COMMENT 'Image key',
+                  \`date\` VARCHAR(255) NOT NULL COMMENT 'Image directory in S3',
                   \`timestamp\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );`
   );
   if (imageTable) console.log("imageTable is ready for service.");
 }
+async function createTextTable() {
+  const textTable = await pool.query(
+    `CREATE TABLE IF NOT EXISTS \`texts\` (
+                  \`id\` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT 'Text id',
+                  \`user_id\` BIGINT UNSIGNED NOT NULL COMMENT 'User id',
+                  \`baby_id\` BIGINT UNSIGNED NOT NULL COMMENT 'Baby id',
+                  \`content\` TEXT NOT NULL COMMENT 'Text content',
+                  \`date\` VARCHAR(255) NOT NULL COMMENT 'Text date',
+                  \`timestamp\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );`
+  );
+  if (textTable) console.log("textTable is ready for service.");
+}
+
+createUserTable();
+createBabyTable();
+createFollowTable();
+createImageTable();
+createTextTable();
+
+const commands = [
+  newUser(
+    pool,
+    CONT.authProvider.NATIVE,
+    CONT.authRole.ADMIN,
+    "aaa123456",
+    "aaa123456@fakemail.com",
+    "$2b$10$tzcVE8bVVv6k151knLPC1.xuA5GbFpuRtDO3ekKhDsiu85td5i6by"
+  ),
+  newBaby(pool, "puff", CONT.babyGender.GIRL, "2024-03-24")
+];
+Promise.all(commands)
+  .then((result) => {
+    console.log("result %j", result);
+  })
+  .catch((err) => {
+    console.log("Error: " + err.message);
+  });

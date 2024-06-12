@@ -6,20 +6,14 @@ const configDB = [
     host: process.env.MYSQL_HOST,
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD,
-    database: process.env.MYSQL_DATABASE //myDB
+    database: process.env.MYSQL_DATABASE //myBaby
   }
   // {
-  //   host: process.env.RDS_HOST_1,
-  //   user: process.env.RDS_USER_1,
-  //   password: process.env.RDS_PASSWORD_1,
-  //   database: process.env.MYSQL_DATABASE, //myDB
-  // },
-  // {
-  //   host: process.env.RDS_HOST_2,
-  //   user: process.env.RDS_USER_2,
-  //   password: process.env.RDS_PASSWORD_2,
-  //   database: process.env.MYSQL_DATABASE, //myDB
-  // },
+  //   host: process.env.AWS_RDS_HOST,
+  //   user: process.env.AWS_RDS_USERNAME,
+  //   password: process.env.AWS_RDS_PASSWORD,
+  //   database: process.env.MYSQL_DATABASE //myBaby
+  // }
 ];
 
 const connections = configDB.map((config) =>
