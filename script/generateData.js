@@ -1,13 +1,12 @@
 const mysql = require("mysql2");
 const dotenv = require("dotenv").config();
 const CONT = require("../utils/getAuthConst");
-const { connections } = require("../database/connDB");
-const { newUser } = require("../database/userDB");
+const { conn } = require("../database/connDB");
+const { newUser, setUserFollowBaby } = require("../database/userDB");
 const { newBaby } = require("../database/babyDB");
 const { setImage } = require("../database/imageDB");
 
-// const pool = mysql.createPool(configDB[0]).promise();
-const pool = connections[0];
+const pool = conn;
 
 async function createUserTable() {
   const userTable = await pool.query(
@@ -92,7 +91,8 @@ const commands = [
     "aaa123456@fakemail.com",
     "$2b$10$tzcVE8bVVv6k151knLPC1.xuA5GbFpuRtDO3ekKhDsiu85td5i6by"
   ),
-  newBaby(pool, "puff", CONT.babyGender.GIRL, "2024-03-24")
+  newBaby(pool, "puff", CONT.babyGender.GIRL, "2024-03-24"),
+  setUserFollowBaby(1, 1)
 ];
 Promise.all(commands)
   .then((result) => {

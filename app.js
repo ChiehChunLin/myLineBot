@@ -9,7 +9,7 @@ const app = express();
 app.get("/", (req, res) => {
   res.send("homepage.");
 });
-
+//lineBot.lineAuthCheck(lineBot.config),
 app.post("/", lineBot.lineAuthCheck(lineBot.config), (req, res) => {
   if (req.body.destination) {
     console.log("Destination User ID: " + req.body.destination);
