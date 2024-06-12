@@ -4,7 +4,7 @@ async function setImage(conn, user_id, baby_id, filename, date) {
      INSERT INTO images (user_id,baby_id,filename,imageDate)
      VALUES (?,?,?,?)
     `,
-    [user_id, baby_id, key, date]
+    [user_id, baby_id, filename, date]
   );
   // console.log("setImage:" + JSON.stringify(rows));
   if (rows.length == 0 || !rows.insertId) {

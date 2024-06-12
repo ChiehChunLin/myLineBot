@@ -11,11 +11,13 @@
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.592.0",
+    "@aws-sdk/lib-storage": "^3.592.0",
     "@aws-sdk/s3-request-presigner": "^3.592.0",
     "@line/bot-sdk": "^9.2.2",
     "body-parser": "^1.20.2",
     "crypto": "^1.0.1",
     "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
     "express": "^4.19.2",
     "fs": "^0.0.1-security",
     "mysql2": "^3.10.0",

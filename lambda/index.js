@@ -8,6 +8,7 @@ const path = require("path");
 const util = require("util");
 const { pipeline } = require("stream");
 const { S3Client } = require("@aws-sdk/client-s3");
+const { Upload } = require("@aws-sdk/lib-storage");
 
 const bucketName = process.env.AWS_S3_BUCKET_NAME;
 const s3Client = new S3Client({
@@ -42,7 +43,7 @@ const configDB = [
     database: process.env.MYSQL_DATABASE //myBaby
   }
 ];
-const conn = mysql.createPool(configDB[0]).promise();
+const conn = mysql.createPool(configDB[1]).promise();
 
 //===========================================
 //=========  LINE Bot Function  =============
@@ -374,7 +375,7 @@ async function handleImage(message, replyToken) {
       );
 
       // await downloadContent(message.id, downloadPath);
-      //await saveContentToS3(message.id, path.extname(downloadPath));
+      await saveContentToS3(message.id, downloadPath);
     }
     return replyText(replyToken, "images are saved.");
   } catch (err) {
@@ -383,8 +384,6 @@ async function handleImage(message, replyToken) {
   }
 }
 async function handleVideo(message, replyToken) {
-  console.log(`handleVideo: ${replyToken} ${JSON.stringify(message)}}`);
-
   function sendReply(originalContentUrl, previewImageUrl) {
     return client.replyMessage({
       replyToken,
@@ -411,7 +410,7 @@ async function handleVideo(message, replyToken) {
       );
 
       // await downloadContent(message.id, downloadPath);
-      // await saveContentToS3(message.id, path.extname(downloadPath));
+      await saveContentToS3(message.id, downloadPath);
 
       return replyText(replyToken, "videos are saved.");
     }
@@ -430,35 +429,46 @@ async function downloadContent(messageId, downloadPath) {
   await pipelineAsync(stream, writable);
   await setImage(conn, 1, 1, messageId, date);
 }
-async function saveContentToS3(messageId, filetype) {
+async function saveContentToS3(messageId, downloadPath) {
   const stream = await blobClient.getMessageContent(messageId);
-  const filepath = new Date().toISOString().slice(0, 10); //YYYY-MM-DD
-  const filename = messageId;
-  const fullname = `/${filepath}/${filename}${filetype}`;
-  console.log(fullname);
-  try {
-    const awsResult = await putStreamImageS3(stream, filename, filetype);
-    if (awsResult.$metadata.httpStatusCode !== 200) {
-      throw new Error("image upload to S3 failed!");
-    }
-    await setImage(conn, 1, 1, filename, filepath);
-  } catch (err) {
-    console.log("S3 Error: " + err.message);
+  const filepath = getFormattedDate();
+  const filename = await getCryptoID();
+  const fullname = `${filepath}/${filename}`;
+  const awsResult = await putStreamImageS3(
+    stream,
+    fullname,
+    path.extname(downloadPath)
+  );
+  if (awsResult.$metadata.httpStatusCode !== 200) {
+    throw new Error("image upload to S3 failed!");
   }
+  await imageDB.setImage(conn, 1, 1, filename, filepath);
 }
 //===========================================
 //=========   AWS S3 Function   =============
 //===========================================
-async function putStreamImageS3(stream, filename, filetype) {
-  const params = {
-    Bucket: bucketName,
-    Key: filename, //s3 will replace the same name object!
-    Body: stream,
-    ContentType: filetype
-  };
+async function putStreamImageS3(fileStream, filename, filetype) {
+  try {
+    const params = {
+      Bucket: bucketName,
+      Key: filename,
+      Body: fileStream,
+      ContentType: filetype
+    };
+    const parallelUploads3 = new Upload({
+      client: s3Client,
+      params: params
+    });
 
-  const data = await s3Client.send(new PutObjectCommand(params));
-  return data;
+    parallelUploads3.on("httpUploadProgress", (progress) => {
+      // console.log(progress);
+    });
+
+    const data = await parallelUploads3.done();
+    return data;
+  } catch (e) {
+    console.log(e);
+  }
 }
 //===========================================
 //=========   AWS RDS Function   =============
@@ -495,79 +505,81 @@ async function setText(conn, user_id, baby_id, content, date) {
 }
 
 exports.handler = async (event, context) => {
-  //============= webhook verify =============
-  // event: {
-  //     "destination": "U1e7165f3c3db2ce3142eb75643c61ec6",
-  //     "events": []
-  // }
-  //============= webhook text =============
-  // event:
-  // {
-  //     "destination": "U1e7165f3c3db2ce3142eb75643c61ec6",
-  //     "events": [
-  //         {
-  //             "type": "message",
-  //             "message": {
-  //                 "type": "text",
-  //                 "id": "512335253806252212",
-  //                 "quoteToken": "-xNx9ZChBm3zj_V29PHxPqaTXrAktk37CxS7lup28l9Z93hhBB5DPFt_TDIZSrRxkZUD_AjV8Sreyw7lb3SNRsuwzhEQJEBh2NC3f4Tddxu4BakhV_Ni4W1imb0s0LcMNbkn-xxV6G6zJZCe5cSCNg",
-  //                 "text": "Hi"
-  //             },
-  //             "webhookEventId": "01J06HSP0XFRZEMNF23YQVATH9",
-  //             "deliveryContext": {
-  //                 "isRedelivery": false
-  //             },
-  //             "timestamp": 1718206912151,
-  //             "source": {
-  //                 "type": "user",
-  //                 "userId": "U9acc24aec8497b5e7159c861f9079b71"
-  //             },
-  //             "replyToken": "9e113d72de604ef8ae4a11b9579bfbfe",
-  //             "mode": "active"
-  //         }
-  //     ]
-  // }
-  //============= webhook image =============
-  // event:
-  // {
-  //     "destination": "U1e7165f3c3db2ce3142eb75643c61ec6",
-  //     "events": [
-  //         {
-  //             "type": "message",
-  //             "message": {
-  //                 "type": "image",
-  //                 "id": "512335452397633621",
-  //                 "quoteToken": "TAn18IYmEkMwiDao0o2i6LUoSvMDpwP43qia-pr47XsL1C3W5dAuxRdH1upexdGQgw8u5tQyPF3JEwKz-rMXE-K2znl6TG010IPJdaq7ynWlAzVevpkaj4OheiQjn2x2he6CFscjUEIRApm2CjDxgQ",
-  //                 "contentProvider": {
-  //                     "type": "line"
-  //                 }
-  //             },
-  //             "webhookEventId": "01J06HXA0PDB9GG18KB68CH51M",
-  //             "deliveryContext": {
-  //                 "isRedelivery": false
-  //             },
-  //             "timestamp": 1718207031184,
-  //             "source": {
-  //                 "type": "user",
-  //                 "userId": "U9acc24aec8497b5e7159c861f9079b71"
-  //             },
-  //             "replyToken": "945058e8208c4c19aaa0ef014d2f39cc",
-  //             "mode": "active"
-  //         }
-  //     ]
-  // }
-  //============================================
-  // context:
-  // {
-  //     "callbackWaitsForEmptyEventLoop": true,
-  //     "functionVersion": "$LATEST",
-  //     "functionName": "myLambda",
-  //     "memoryLimitInMB": "128",
-  //     "logGroupName": "/aws/lambda/myLambda",
-  //     "logStreamName": "2024/06/12/[$LATEST]35e9060352fb481ba2c6b74ac5a5cca1",
-  //     "invokedFunctionArn": "arn:aws:lambda:ap-southeast-2:339713146144:function:myLambda",
-  //     "awsRequestId": "fc953efe-b09d-4eeb-b452-9262703c750f"
-  // }
+  {
+    //============= webhook verify =============
+    // event: {
+    //     "destination": "U1e7165f3c3db2ce3142eb75643c61ec6",
+    //     "events": []
+    // }
+    //============= webhook text =============
+    // event:
+    // {
+    //     "destination": "U1e7165f3c3db2ce3142eb75643c61ec6",
+    //     "events": [
+    //         {
+    //             "type": "message",
+    //             "message": {
+    //                 "type": "text",
+    //                 "id": "512335253806252212",
+    //                 "quoteToken": "-xNx9ZChBm3zj_V29PHxPqaTXrAktk37CxS7lup28l9Z93hhBB5DPFt_TDIZSrRxkZUD_AjV8Sreyw7lb3SNRsuwzhEQJEBh2NC3f4Tddxu4BakhV_Ni4W1imb0s0LcMNbkn-xxV6G6zJZCe5cSCNg",
+    //                 "text": "Hi"
+    //             },
+    //             "webhookEventId": "01J06HSP0XFRZEMNF23YQVATH9",
+    //             "deliveryContext": {
+    //                 "isRedelivery": false
+    //             },
+    //             "timestamp": 1718206912151,
+    //             "source": {
+    //                 "type": "user",
+    //                 "userId": "U9acc24aec8497b5e7159c861f9079b71"
+    //             },
+    //             "replyToken": "9e113d72de604ef8ae4a11b9579bfbfe",
+    //             "mode": "active"
+    //         }
+    //     ]
+    // }
+    //============= webhook image =============
+    // event:
+    // {
+    //     "destination": "U1e7165f3c3db2ce3142eb75643c61ec6",
+    //     "events": [
+    //         {
+    //             "type": "message",
+    //             "message": {
+    //                 "type": "image",
+    //                 "id": "512335452397633621",
+    //                 "quoteToken": "TAn18IYmEkMwiDao0o2i6LUoSvMDpwP43qia-pr47XsL1C3W5dAuxRdH1upexdGQgw8u5tQyPF3JEwKz-rMXE-K2znl6TG010IPJdaq7ynWlAzVevpkaj4OheiQjn2x2he6CFscjUEIRApm2CjDxgQ",
+    //                 "contentProvider": {
+    //                     "type": "line"
+    //                 }
+    //             },
+    //             "webhookEventId": "01J06HXA0PDB9GG18KB68CH51M",
+    //             "deliveryContext": {
+    //                 "isRedelivery": false
+    //             },
+    //             "timestamp": 1718207031184,
+    //             "source": {
+    //                 "type": "user",
+    //                 "userId": "U9acc24aec8497b5e7159c861f9079b71"
+    //             },
+    //             "replyToken": "945058e8208c4c19aaa0ef014d2f39cc",
+    //             "mode": "active"
+    //         }
+    //     ]
+    // }
+    //============================================
+    // context:
+    // {
+    //     "callbackWaitsForEmptyEventLoop": true,
+    //     "functionVersion": "$LATEST",
+    //     "functionName": "myLambda",
+    //     "memoryLimitInMB": "128",
+    //     "logGroupName": "/aws/lambda/myLambda",
+    //     "logStreamName": "2024/06/12/[$LATEST]35e9060352fb481ba2c6b74ac5a5cca1",
+    //     "invokedFunctionArn": "arn:aws:lambda:ap-southeast-2:339713146144:function:myLambda",
+    //     "awsRequestId": "fc953efe-b09d-4eeb-b452-9262703c750f"
+    // }
+  }
 
   if (event.events.length == 0) {
     console.log("Line webhook Verify return statusCode 200");

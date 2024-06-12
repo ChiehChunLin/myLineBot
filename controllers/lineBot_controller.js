@@ -351,8 +351,8 @@ async function handleImage(message, replyToken) {
         `${message.id}-preview.jpg`
       );
 
-      await downloadContent(message.id, downloadPath);
-      //await saveContentToS3(message.id, path.extname(downloadPath));
+      // await downloadContent(message.id, downloadPath);
+      await saveContentToS3(message.id, downloadPath);
     }
     return replyText(replyToken, "images are saved.");
   } catch (err) {
@@ -362,8 +362,6 @@ async function handleImage(message, replyToken) {
 }
 
 async function handleVideo(message, replyToken) {
-  console.log(`handleVideo: ${replyToken} ${JSON.stringify(message)}}`);
-
   function sendReply(originalContentUrl, previewImageUrl) {
     return client.replyMessage({
       replyToken,
@@ -390,7 +388,7 @@ async function handleVideo(message, replyToken) {
       );
 
       // await downloadContent(message.id, downloadPath);
-      // await saveContentToS3(message.id, path.extname(downloadPath));
+      await saveContentToS3(message.id, downloadPath);
 
       return replyText(replyToken, "videos are saved.");
     }
@@ -409,24 +407,28 @@ async function downloadContent(messageId, downloadPath) {
   await pipelineAsync(stream, writable);
   await imageDB.setImage(conn, 1, 1, messageId, getFormattedDate());
 }
-async function saveContentToS3(messageId, filetype) {
+async function saveContentToS3(messageId, downloadPath) {
   const stream = await blobClient.getMessageContent(messageId);
   const filepath = getFormattedDate();
   const filename = await getCryptoID();
-  const fullname = `/${filepath}/${filename}${filetype}`;
-  try {
-    const awsResult = await s3.putStreamImageS3(stream, fullname, filetype);
-    if (awsResult.$metadata.httpStatusCode !== 200) {
-      throw new Error("image upload to S3 failed!");
-    }
-    await imageDB.setImage(conn, 1, 1, filename, filepath);
-  } catch (err) {
-    console.log("S3 Error: " + err.message);
+  const fullname = `${filepath}/${filename}`;
+  const awsResult = await s3.putStreamImageS3(
+    stream,
+    fullname,
+    path.extname(downloadPath)
+  );
+  if (awsResult.$metadata.httpStatusCode !== 200) {
+    throw new Error("image upload to S3 failed!");
   }
+  await imageDB.setImage(conn, 1, 1, filename, filepath);
+}
+function getImageUrl(key) {
+  return s3.getImageCDN(key);
 }
 
 module.exports = {
   config,
   lineAuthCheck,
-  handleEvent
+  handleEvent,
+  getImageUrl
 };

@@ -3,9 +3,9 @@ require("dotenv").config();
 const {
   S3Client,
   GetObjectCommand,
-  PutObjectCommand,
-  DeleteObjectCommand
+  PutObjectCommand
 } = require("@aws-sdk/client-s3");
+const { Upload } = require("@aws-sdk/lib-storage");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 const s3Client = new S3Client({
@@ -48,16 +48,28 @@ async function putImageS3(file) {
   const data = await s3Client.send(new PutObjectCommand(params));
   return data;
 }
-async function putStreamImageS3(stream, filename, filetype) {
-  const params = {
-    Bucket: bucketName,
-    Key: filename, //s3 will replace the same name object!
-    Body: stream,
-    ContentType: filetype
-  };
+async function putStreamImageS3(fileStream, filename, filetype) {
+  try {
+    const params = {
+      Bucket: bucketName,
+      Key: filename,
+      Body: fileStream,
+      ContentType: filetype
+    };
+    const parallelUploads3 = new Upload({
+      client: s3Client,
+      params: params
+    });
 
-  const data = await s3Client.send(new PutObjectCommand(params));
-  return data;
+    parallelUploads3.on("httpUploadProgress", (progress) => {
+      // console.log(progress);
+    });
+
+    const data = await parallelUploads3.done();
+    return data;
+  } catch (e) {
+    console.log(e);
+  }
 }
 
 module.exports = {
