@@ -1,4 +1,4 @@
-async function setImage(conn, user_id, baby_id, key, date) {
+async function setImage(conn, user_id, baby_id, filename, date) {
   const [rows] = await conn.query(
     `
      INSERT INTO images (user_id,baby_id,filename,imageDate)
