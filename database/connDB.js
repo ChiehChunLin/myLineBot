@@ -7,17 +7,15 @@ const configDB = [
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD,
     database: process.env.MYSQL_DATABASE //myBaby
+  },
+  {
+    host: process.env.AWS_RDS_HOST,
+    user: process.env.AWS_RDS_USERNAME,
+    password: process.env.AWS_RDS_PASSWORD,
+    database: process.env.MYSQL_DATABASE //myBaby
   }
-  // {
-  //   host: process.env.AWS_RDS_HOST,
-  //   user: process.env.AWS_RDS_USERNAME,
-  //   password: process.env.AWS_RDS_PASSWORD,
-  //   database: process.env.MYSQL_DATABASE //myBaby
-  // }
 ];
 
-const connections = configDB.map((config) =>
-  mysql.createPool(config).promise()
-);
+const conn = mysql.createPool(configDB[0]).promise();
 
-module.exports = { connections };
+module.exports = { conn };

@@ -56,8 +56,8 @@ async function createImageTable() {
                   \`user_id\` BIGINT UNSIGNED NOT NULL COMMENT 'User id',
                   \`baby_id\` BIGINT UNSIGNED NOT NULL COMMENT 'Baby id',
                   \`tag\` VARCHAR(255) NOT NULL DEFAULT '' COMMENT 'Image tag',
-                  \`key\` VARCHAR(255) NOT NULL COMMENT 'Image key',
-                  \`date\` VARCHAR(255) NOT NULL COMMENT 'Image directory in S3',
+                  \`filename\` VARCHAR(255) NOT NULL COMMENT 'Image filename',
+                  \`imageDate\` VARCHAR(255) NOT NULL COMMENT 'Image date in S3',
                   \`timestamp\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );`
   );
@@ -70,7 +70,7 @@ async function createTextTable() {
                   \`user_id\` BIGINT UNSIGNED NOT NULL COMMENT 'User id',
                   \`baby_id\` BIGINT UNSIGNED NOT NULL COMMENT 'Baby id',
                   \`content\` TEXT NOT NULL COMMENT 'Text content',
-                  \`date\` VARCHAR(255) NOT NULL COMMENT 'Text date',
+                  \`textDate\` VARCHAR(255) NOT NULL COMMENT 'Text date',
                   \`timestamp\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );`
   );

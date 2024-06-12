@@ -4,6 +4,8 @@ const path = require("path");
 const util = require("util");
 const { pipeline } = require("stream");
 const s3 = require("./awsS3_controller");
+const { conn } = require("../database/connDB");
+const imageDB = require("../database/imageDB");
 const { getCryptoID } = require("../utils/cryptoGenerator");
 const { getFormattedDate } = require("../utils/getFormattedDate");
 
@@ -405,13 +407,22 @@ async function downloadContent(messageId, downloadPath) {
 
   const writable = fs.createWriteStream(downloadPath);
   await pipelineAsync(stream, writable);
+  await imageDB.setImage(conn, 1, 1, messageId, getFormattedDate());
 }
 async function saveContentToS3(messageId, filetype) {
   const stream = await blobClient.getMessageContent(messageId);
   const filepath = getFormattedDate();
   const filename = await getCryptoID();
   const fullname = `/${filepath}/${filename}${filetype}`;
-  // await s3.putStreamImageS3(stream, fullname, filetype);
+  try {
+    const awsResult = await s3.putStreamImageS3(stream, fullname, filetype);
+    if (awsResult.$metadata.httpStatusCode !== 200) {
+      throw new Error("image upload to S3 failed!");
+    }
+    await imageDB.setImage(conn, 1, 1, filename, filepath);
+  } catch (err) {
+    console.log("S3 Error: " + err.message);
+  }
 }
 
 module.exports = {

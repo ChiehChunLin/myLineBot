@@ -1,7 +1,7 @@
 async function setText(conn, user_id, baby_id, content, date) {
   const [rows] = await conn.query(
     `
-       INSERT INTO texts (user_id,baby_id,content,date)
+       INSERT INTO texts (user_id,baby_id,content,textDate)
        VALUES (?,?,?,?)
       `,
     [user_id, baby_id, content, date]
@@ -16,7 +16,7 @@ async function setText(conn, user_id, baby_id, content, date) {
 async function getTextByDate(conn, baby_id, date) {
   const [rows] = await conn.query(
     `
-       SELECT * FROM texts where baby_id = ? AND date = ?
+       SELECT * FROM texts where baby_id = ? AND textDate = ?
       `,
     [baby_id, date]
   );
