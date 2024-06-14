@@ -410,7 +410,7 @@ async function downloadContent(messageId, downloadPath) {
 async function saveContentToS3(messageId, downloadPath) {
   const stream = await blobClient.getMessageContent(messageId);
   const filepath = getFormattedDate();
-  const filename = await getCryptoID();
+  const filename = messageId;
   const fullname = `${filepath}/${filename}`;
   const awsResult = await s3.putStreamImageS3(
     stream,

@@ -12,10 +12,10 @@ const configDB = [
     host: process.env.AWS_RDS_HOST,
     user: process.env.AWS_RDS_USERNAME,
     password: process.env.AWS_RDS_PASSWORD,
-    database: process.env.MYSQL_DATABASE //myBaby
+    database: process.env.AWS_RDS_DATABASE //myBaby
   }
 ];
 
-const conn = mysql.createPool(configDB[0]).promise();
+const conn = mysql.createPool(configDB[1]).promise();
 
 module.exports = { conn };
