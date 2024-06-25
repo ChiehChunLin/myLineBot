@@ -54,7 +54,7 @@ async function putStreamImageS3(fileStream, filename, filetype) {
       Bucket: bucketName,
       Key: filename,
       Body: fileStream,
-      ContentType: filetype
+      ContentType: filetype //image/jpeg, video/mp4
     };
     const parallelUploads3 = new Upload({
       client: s3Client,

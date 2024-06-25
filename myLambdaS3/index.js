@@ -12,8 +12,24 @@ const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda");
 
 const funcDB = {
   SET_IMAGE: "setImage",
-  SET_TEXT: "setText"
+  SET_TEXT: "setText",
+  SET_DAILY: "setDaily"
 };
+const messageType = {
+  TEXT: "text",
+  IMAGE: "image",
+  VIDEO: "video"
+};
+const babyActivity = {
+  MILK: 'milk',
+  FOOD: 'food',
+  SLEEP: 'sleep',
+  MEDICINE: 'medicine',
+  HEIGHT: 'height',
+  WEIGHT: 'weight',
+  DIARY: 'diary',
+  ERROR: 'error'
+}
 const lambdaClient = new LambdaClient({
   region: process.env.AWS_LAMBDA_REGION
 });
@@ -37,6 +53,7 @@ const blobClient = new line.messagingApi.MessagingApiBlobClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN
 });
 
+let userId = process.env.DEFAULT_USER_ID;
 //===========================================
 //=========  LINE Bot Function  =============
 //===========================================
@@ -78,267 +95,272 @@ function handleEvent(event) {
   }
 }
 async function handleText(message, replyToken, source) {
-  const buttonsImageURL = `${baseURL}/static/buttons/1040.jpg`;
-
-  switch (message.text) {
-    case "profile":
-      if (source.userId) {
-        return client
-          .getProfile(source.userId)
-          .then((profile) =>
-            replyText(replyToken, [
-              `Display name: ${profile.displayName}`,
-              `Status message: ${profile.statusMessage}`
-            ])
+  try{
+    const buttonsImageURL = `${baseURL}/static/buttons/1040.jpg`;
+    switch (message.text) {
+      case "profile":
+        if (source.userId) {
+          return client
+            .getProfile(source.userId)
+            .then((profile) =>
+              replyText(replyToken, [
+                `Display name: ${profile.displayName}`,
+                `Status message: ${profile.statusMessage}`
+              ])
+            );
+        } else {
+          return replyText(
+            replyToken,
+            "Bot can't use profile API without user ID"
           );
-      } else {
-        return replyText(
+        }
+      case "buttons":
+        return client.replyMessage({
           replyToken,
-          "Bot can't use profile API without user ID"
-        );
-      }
-    case "buttons":
-      return client.replyMessage({
-        replyToken,
-        messages: [
-          {
-            type: "template",
-            altText: "Buttons alt text",
-            template: {
-              type: "buttons",
-              thumbnailImageUrl: buttonsImageURL,
-              title: "My button sample",
-              text: "Hello, my button",
-              actions: [
-                { label: "Go to line.me", type: "uri", uri: "https://line.me" },
-                {
-                  label: "Say hello1",
-                  type: "postback",
-                  data: "hello こんにちは"
-                },
-                {
-                  label: "言 hello2",
-                  type: "postback",
-                  data: "hello こんにちは",
-                  text: "hello こんにちは"
-                },
-                { label: "Say message", type: "message", text: "Rice=米" }
-              ]
+          messages: [
+            {
+              type: "template",
+              altText: "Buttons alt text",
+              template: {
+                type: "buttons",
+                thumbnailImageUrl: buttonsImageURL,
+                title: "My button sample",
+                text: "Hello, my button",
+                actions: [
+                  { label: "Go to line.me", type: "uri", uri: "https://line.me" },
+                  {
+                    label: "Say hello1",
+                    type: "postback",
+                    data: "hello こんにちは"
+                  },
+                  {
+                    label: "言 hello2",
+                    type: "postback",
+                    data: "hello こんにちは",
+                    text: "hello こんにちは"
+                  },
+                  { label: "Say message", type: "message", text: "Rice=米" }
+                ]
+              }
             }
-          }
-        ]
-      });
-    case "confirm":
-      return client.replyMessage({
-        replyToken,
-        messages: [
-          {
-            type: "template",
-            altText: "Confirm alt text",
-            template: {
-              type: "confirm",
-              text: "Do it?",
-              actions: [
-                { label: "Yes", type: "message", text: "Yes!" },
-                { label: "No", type: "message", text: "No!" }
-              ]
+          ]
+        });
+      case "confirm":
+        return client.replyMessage({
+          replyToken,
+          messages: [
+            {
+              type: "template",
+              altText: "Confirm alt text",
+              template: {
+                type: "confirm",
+                text: "Do it?",
+                actions: [
+                  { label: "Yes", type: "message", text: "Yes!" },
+                  { label: "No", type: "message", text: "No!" }
+                ]
+              }
             }
-          }
-        ]
-      });
-    case "carousel":
-      return client.replyMessage({
-        replyToken,
-        messages: [
-          {
-            type: "template",
-            altText: "Carousel alt text",
-            template: {
-              type: "carousel",
-              columns: [
-                {
-                  thumbnailImageUrl: buttonsImageURL,
-                  title: "hoge",
-                  text: "fuga",
-                  actions: [
-                    {
-                      label: "Go to line.me",
+          ]
+        });
+      case "carousel":
+        return client.replyMessage({
+          replyToken,
+          messages: [
+            {
+              type: "template",
+              altText: "Carousel alt text",
+              template: {
+                type: "carousel",
+                columns: [
+                  {
+                    thumbnailImageUrl: buttonsImageURL,
+                    title: "hoge",
+                    text: "fuga",
+                    actions: [
+                      {
+                        label: "Go to line.me",
+                        type: "uri",
+                        uri: "https://line.me"
+                      },
+                      {
+                        label: "Say hello1",
+                        type: "postback",
+                        data: "hello こんにちは"
+                      }
+                    ]
+                  },
+                  {
+                    thumbnailImageUrl: buttonsImageURL,
+                    title: "hoge",
+                    text: "fuga",
+                    actions: [
+                      {
+                        label: "言 hello2",
+                        type: "postback",
+                        data: "hello こんにちは",
+                        text: "hello こんにちは"
+                      },
+                      { label: "Say message", type: "message", text: "Rice=米" }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        });
+      case "image carousel":
+        return client.replyMessage({
+          replyToken,
+          messages: [
+            {
+              type: "template",
+              altText: "Image carousel alt text",
+              template: {
+                type: "image_carousel",
+                columns: [
+                  {
+                    imageUrl: buttonsImageURL,
+                    action: {
+                      label: "Go to LINE",
                       type: "uri",
                       uri: "https://line.me"
-                    },
-                    {
+                    }
+                  },
+                  {
+                    imageUrl: buttonsImageURL,
+                    action: {
                       label: "Say hello1",
                       type: "postback",
                       data: "hello こんにちは"
                     }
-                  ]
-                },
-                {
-                  thumbnailImageUrl: buttonsImageURL,
-                  title: "hoge",
-                  text: "fuga",
-                  actions: [
-                    {
-                      label: "言 hello2",
-                      type: "postback",
-                      data: "hello こんにちは",
-                      text: "hello こんにちは"
-                    },
-                    { label: "Say message", type: "message", text: "Rice=米" }
-                  ]
-                }
-              ]
+                  },
+                  {
+                    imageUrl: buttonsImageURL,
+                    action: {
+                      label: "Say message",
+                      type: "message",
+                      text: "Rice=米"
+                    }
+                  },
+                  {
+                    imageUrl: buttonsImageURL,
+                    action: {
+                      label: "datetime",
+                      type: "datetimepicker",
+                      data: "DATETIME",
+                      mode: "datetime"
+                    }
+                  }
+                ]
+              }
             }
-          }
-        ]
-      });
-    case "image carousel":
-      return client.replyMessage({
-        replyToken,
-        messages: [
-          {
-            type: "template",
-            altText: "Image carousel alt text",
-            template: {
-              type: "image_carousel",
-              columns: [
-                {
-                  imageUrl: buttonsImageURL,
-                  action: {
-                    label: "Go to LINE",
-                    type: "uri",
-                    uri: "https://line.me"
-                  }
-                },
-                {
-                  imageUrl: buttonsImageURL,
-                  action: {
-                    label: "Say hello1",
-                    type: "postback",
-                    data: "hello こんにちは"
-                  }
-                },
-                {
-                  imageUrl: buttonsImageURL,
-                  action: {
-                    label: "Say message",
-                    type: "message",
-                    text: "Rice=米"
-                  }
-                },
-                {
-                  imageUrl: buttonsImageURL,
-                  action: {
-                    label: "datetime",
+          ]
+        });
+      case "datetime":
+        return client.replyMessage({
+          replyToken,
+          messages: [
+            {
+              type: "template",
+              altText: "Datetime pickers alt text",
+              template: {
+                type: "buttons",
+                text: "Select date / time !",
+                actions: [
+                  {
                     type: "datetimepicker",
+                    label: "date",
+                    data: "DATE",
+                    mode: "date"
+                  },
+                  {
+                    type: "datetimepicker",
+                    label: "time",
+                    data: "TIME",
+                    mode: "time"
+                  },
+                  {
+                    type: "datetimepicker",
+                    label: "datetime",
                     data: "DATETIME",
                     mode: "datetime"
                   }
-                }
-              ]
+                ]
+              }
             }
-          }
-        ]
-      });
-    case "datetime":
-      return client.replyMessage({
-        replyToken,
-        messages: [
-          {
-            type: "template",
-            altText: "Datetime pickers alt text",
-            template: {
-              type: "buttons",
-              text: "Select date / time !",
+          ]
+        });
+      case "imagemap":
+        return client.replyMessage({
+          replyToken,
+          messages: [
+            {
+              type: "imagemap",
+              baseUrl: `${baseURL}/static/rich`,
+              altText: "Imagemap alt text",
+              baseSize: { width: 1040, height: 1040 },
               actions: [
                 {
-                  type: "datetimepicker",
-                  label: "date",
-                  data: "DATE",
-                  mode: "date"
+                  area: { x: 0, y: 0, width: 520, height: 520 },
+                  type: "uri",
+                  linkUri: "https://store.line.me/family/manga/en"
                 },
                 {
-                  type: "datetimepicker",
-                  label: "time",
-                  data: "TIME",
-                  mode: "time"
+                  area: { x: 520, y: 0, width: 520, height: 520 },
+                  type: "uri",
+                  linkUri: "https://store.line.me/family/music/en"
                 },
                 {
-                  type: "datetimepicker",
-                  label: "datetime",
-                  data: "DATETIME",
-                  mode: "datetime"
+                  area: { x: 0, y: 520, width: 520, height: 520 },
+                  type: "uri",
+                  linkUri: "https://store.line.me/family/play/en"
+                },
+                {
+                  area: { x: 520, y: 520, width: 520, height: 520 },
+                  type: "message",
+                  text: "URANAI!"
                 }
-              ]
-            }
-          }
-        ]
-      });
-    case "imagemap":
-      return client.replyMessage({
-        replyToken,
-        messages: [
-          {
-            type: "imagemap",
-            baseUrl: `${baseURL}/static/rich`,
-            altText: "Imagemap alt text",
-            baseSize: { width: 1040, height: 1040 },
-            actions: [
-              {
-                area: { x: 0, y: 0, width: 520, height: 520 },
-                type: "uri",
-                linkUri: "https://store.line.me/family/manga/en"
-              },
-              {
-                area: { x: 520, y: 0, width: 520, height: 520 },
-                type: "uri",
-                linkUri: "https://store.line.me/family/music/en"
-              },
-              {
-                area: { x: 0, y: 520, width: 520, height: 520 },
-                type: "uri",
-                linkUri: "https://store.line.me/family/play/en"
-              },
-              {
-                area: { x: 520, y: 520, width: 520, height: 520 },
-                type: "message",
-                text: "URANAI!"
-              }
-            ],
-            video: {
-              originalContentUrl: `${baseURL}/static/imagemap/video.mp4`,
-              previewImageUrl: `${baseURL}/static/imagemap/preview.jpg`,
-              area: {
-                x: 280,
-                y: 385,
-                width: 480,
-                height: 270
-              },
-              externalLink: {
-                linkUri: "https://line.me",
-                label: "LINE"
+              ],
+              video: {
+                originalContentUrl: `${baseURL}/static/imagemap/video.mp4`,
+                previewImageUrl: `${baseURL}/static/imagemap/preview.jpg`,
+                area: {
+                  x: 280,
+                  y: 385,
+                  width: 480,
+                  height: 270
+                },
+                externalLink: {
+                  linkUri: "https://line.me",
+                  label: "LINE"
+                }
               }
             }
-          }
-        ]
-      });
-    case "bye":
-      switch (source.type) {
-        case "user":
-          return replyText(replyToken, "Bot can't leave from 1:1 chat");
-        case "group":
-          return replyText(replyToken, "Leaving group").then(() =>
-            client.leaveGroup(source.groupId)
-          );
-        case "room":
-          return replyText(replyToken, "Leaving room").then(() =>
-            client.leaveRoom(source.roomId)
-          );
-      }
-    default:
-      console.log(`Echo message to ${replyToken}: ${message.text}`);
-      return replyText(replyToken, message.text);
-  }
+          ]
+        });
+      case "bye":
+        switch (source.type) {
+          case "user":
+            return replyText(replyToken, "Bot can't leave from 1:1 chat");
+          case "group":
+            return replyText(replyToken, "Leaving group").then(() =>
+              client.leaveGroup(source.groupId)
+            );
+          case "room":
+            return replyText(replyToken, "Leaving room").then(() =>
+              client.leaveRoom(source.roomId)
+            );
+        }
+      default:
+        console.log(`Received Message: ${message.text}`);
+        const replyMessage = await saveContentToDB(message);      
+        return replyText(replyToken, replyMessage);
+    }
+  } catch(err){
+    console.log(`handleText Error: ${err.message}`);
+    return replyText(replyToken, "Server error! 系統錯誤！");
+  }  
 }
 async function handleImage(message, replyToken) {
   function sendReply(originalContentUrl, previewImageUrl) {
@@ -365,7 +387,7 @@ async function handleImage(message, replyToken) {
         "downloaded",
         `${message.id}-preview.jpg`
       );
-      await saveContentToS3(message.id, downloadPath);
+      await saveContentToS3(messageType.IMAGE, message.id, downloadPath);
     }
     return replyText(replyToken, "images are saved.");
   } catch (err) {
@@ -398,7 +420,7 @@ async function handleVideo(message, replyToken) {
         "downloaded",
         `${message.id}-preview.jpg`
       );
-      await saveContentToS3(message.id, downloadPath);
+      await saveContentToS3(messageType.VIDEO, message.id, downloadPath);
 
       return replyText(replyToken, "videos are saved.");
     }
@@ -407,24 +429,40 @@ async function handleVideo(message, replyToken) {
     return replyText(replyToken, "videos fail to save.");
   }
 }
-async function saveContentToS3(messageId, downloadPath) {
+
+async function saveContentToS3(messageType, messageId, downloadPath) {
   const stream = await blobClient.getMessageContent(messageId);
   const filepath = new Date().toISOString().slice(0, 10);
-  const filename = messageId;
-  const fullname = `${filepath}/${filename}`;
-  const awsResult = await putStreamImageS3(
-    stream,
-    fullname,
-    path.extname(downloadPath)
-  );
+  const filename = `${filepath}/${messageId}`;
+  const filetype = getFileMimeType(path.extname(downloadPath));
+
+  let babyId = process.env.DEFAULT_BABY_ID;
+  // if( babyId === ""){
+  //   const resultAI = await invokeLambdaAI(
+  //     funcDB.SET_IMAGE,
+  //     userId,
+  //     babyId,
+  //     messageType,
+  //     filepath,
+  //     filename
+  //   );
+  //   if (resultAI.statusCode != 200) {
+  //     console.log("LambdaAI result: %j", result);
+  //     throw new Error("AI Face Recognition Fail");
+  //   }
+  //   babyId = resultAI.babyIds; //可能是多人合照
+  // }
+  const awsResult = await putStreamImageS3(stream, `${babyId}/${filename}`, filetype);
   if (awsResult.$metadata.httpStatusCode !== 200) {
     console.log("S3 result: %j", awsResult);
     throw new Error("image upload to S3 failed!");
   }
+  
   const result = await invokeLambdaDB(
     funcDB.SET_IMAGE,
-    1,
-    1,
+    userId,
+    babyId,
+    messageType,
     filepath,
     filename
   );
@@ -433,15 +471,63 @@ async function saveContentToS3(messageId, downloadPath) {
     throw new Error("Insert to DB failed!");
   }
 }
+async function saveContentToDB(message){
+  let [head, ...body] = message.text.split(" ");
+  const title = getBabyActivity(head);
+  const content = body.join(" ");
+  const babyId = process.env.DEFAULT_BABY_ID || 0;
+
+  switch (title) {
+    case babyActivity.MILK:
+    case babyActivity.FOOD:
+    case babyActivity.SLEEP:
+    case babyActivity.HEIGHT:
+    case babyActivity.WEIGHT:
+    case babyActivity.MEDICINE:
+      console.log("daily");
+      const dailyResult = await invokeLambdaDB(
+        funcDB.SET_DAILY,
+        userId,
+        babyId,
+        messageType.TEXT,
+        title,
+        content
+      );
+      if (dailyResult.statusCode != 200) {
+        console.log("LambdaDB result: %j", dailyResult);
+        throw new Error("Insert to DB failed!");
+      }
+      return `${title} 紀錄完成！`;
+    case babyActivity.DIARY:
+      console.log("text");
+      const textResult = await invokeLambdaDB(
+        funcDB.SET_TEXT,
+        userId,
+        babyId,
+        messageType.TEXT,
+        title,
+        content
+      );
+      if (textResult.statusCode != 200) {
+        console.log("LambdaDB result: %j", textResult);
+        throw new Error("Insert to DB failed!");
+      }
+      return `${title} 紀錄完成！`;
+    case babyActivity.ERROR:
+      return "Unknown activity! 紀錄輸入錯誤!";
+  }  
+}
+
 //===========================================
 //=========   AWS Lambda Function   =========
 //===========================================
-async function invokeLambdaDB(funcDB, user_id, baby_id, date, content) {
+async function invokeLambdaDB(funcDB, userId, babyId, type, title, content) {
   const payloadData = {
     funcDB,
-    user_id,
-    baby_id,
-    date,
+    userId,
+    babyId,
+    type,
+    title,
     content
   };
   const params = {
@@ -452,6 +538,55 @@ async function invokeLambdaDB(funcDB, user_id, baby_id, date, content) {
   const command = new InvokeCommand(params);
   const response = await lambdaClient.send(command);
   return JSON.parse(new TextDecoder().decode(response.Payload));
+}
+function getBabyActivity(title){
+  const upper = title.toUpperCase();
+  
+  switch(upper){
+    case "M":
+    case "MILK":
+    case "牛奶":
+    case "奶":
+      return babyActivity.MILK;
+    case "F":
+    case "FOOD":
+    case "副食品":
+    case "食物":
+    case "食":
+    case "吃":
+      return babyActivity.FOOD;
+    case "S":
+    case "SLEEP":
+    case "睡":
+    case "睡覺":
+    case "午休":
+    case "休":
+      return babyActivity.SLEEP;
+    case "MED":
+    case "MEDICINE":
+    case "藥":
+    case "吃藥":
+      return babyActivity.MEDICINE;
+    case "H":
+    case "HEIGHT":
+    case "身高":
+    case "高":
+      return babyActivity.HEIGHT;
+    case "W":
+    case "WEIGHT":
+    case "體重":
+    case "重":
+      return babyActivity.WEIGHT;
+    case "D":
+    case "DIARY":
+    case "日誌":
+    case "日記":
+    case "記":
+    case "日":
+      return babyActivity.DIARY;
+    default:
+      return babyActivity.ERROR;
+  }
 }
 //===========================================
 //=========   AWS S3 Function   =============
@@ -477,6 +612,16 @@ async function putStreamImageS3(fileStream, filename, filetype) {
     return data;
   } catch (e) {
     console.log(e);
+  }
+}
+function getFileMimeType(extname) {
+  switch (extname) {
+    case ".jpg":
+      return "image/jpg";
+    case ".mp4":
+      return "video/mp4";
+    default:
+      return "";
   }
 }
 
@@ -548,8 +693,12 @@ exports.handler = async (event) => {
     console.log("Line webhook Verify return statusCode 200");
     return { statusCode: 200, body: "" };
   }
-  if (event.destination) {
-    console.log("Destination User ID: " + event.destination);
+  if (event.destination) {    
+    console.log("Destination ID: " + event.destination);
+  }
+  if(event.events[0].source.userId){
+    userId = event.events[0].source.userId;
+    console.log("Event Deliver (UserID): " + userId);
   }
   if (!Array.isArray(event.events)) {
     return { statusCode: 500 };

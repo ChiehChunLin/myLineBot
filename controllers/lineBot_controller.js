@@ -412,11 +412,8 @@ async function saveContentToS3(messageId, downloadPath) {
   const filepath = getFormattedDate();
   const filename = messageId;
   const fullname = `${filepath}/${filename}`;
-  const awsResult = await s3.putStreamImageS3(
-    stream,
-    fullname,
-    path.extname(downloadPath)
-  );
+  const filetype = getFileMimeType(path.extname(downloadPath));
+  const awsResult = await putStreamImageS3(stream, fullname, filetype);
   if (awsResult.$metadata.httpStatusCode !== 200) {
     throw new Error("image upload to S3 failed!");
   }
@@ -424,6 +421,16 @@ async function saveContentToS3(messageId, downloadPath) {
 }
 function getImageUrl(key) {
   return s3.getImageCDN(key);
+}
+function getFileMimeType(extname) {
+  switch (extname) {
+    case ".jpg":
+      return "image/jpg";
+    case ".mp4":
+      return "video/mp4";
+    default:
+      return "";
+  }
 }
 
 module.exports = {
