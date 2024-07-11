@@ -1,16 +1,19 @@
 "use strict";
 
 const dotenv = require("dotenv").config();
-const fs = require("fs");
 const path = require("path");
-const util = require("util");
 const line = require("@line/bot-sdk");
-const { pipeline } = require("stream");
 const { S3Client } = require("@aws-sdk/client-s3");
 const { Upload } = require("@aws-sdk/lib-storage");
 const { LambdaClient, InvokeCommand } = require("@aws-sdk/client-lambda");
 
+//makes HTTPS requests insecure by disabling certificate verification.
+//if works without bypass shows error : UNABLE_TO_VERIFY_LEAF_SIGNATURE
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const funcDB = {
+  GET_MAIN_BABYS: "getMainBabys", //babyRole='manager'
+  GET_USERID: "getUserId",
   SET_IMAGE: "setImage",
   SET_TEXT: "setText",
   SET_DAILY: "setDaily"
@@ -30,10 +33,10 @@ const babyActivity = {
   DIARY: 'diary',
   ERROR: 'error'
 }
+
 const lambdaClient = new LambdaClient({
   region: process.env.AWS_LAMBDA_REGION
 });
-
 const bucketName = process.env.AWS_S3_BUCKET_NAME;
 const s3Client = new S3Client({
   region: process.env.AWS_S3_BUCKET_REGION,
@@ -53,7 +56,6 @@ const blobClient = new line.messagingApi.MessagingApiBlobClient({
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN
 });
 
-let userId = process.env.DEFAULT_USER_ID;
 //===========================================
 //=========  LINE Bot Function  =============
 //===========================================
@@ -77,9 +79,9 @@ function handleEvent(event) {
         case "text":
           return handleText(message, event.replyToken, event.source);
         case "image":
-          return handleImage(message, event.replyToken);
+          return handleImage(message, event.replyToken, event.source);
         case "video":
-          return handleVideo(message, event.replyToken);
+          return handleVideo(message, event.replyToken, event.source);
         default:
           throw new Error(`Unknown message: ${JSON.stringify(message)}`);
       }
@@ -354,7 +356,7 @@ async function handleText(message, replyToken, source) {
         }
       default:
         console.log(`Received Message: ${message.text}`);
-        const replyMessage = await saveContentToDB(message);      
+        const replyMessage = await saveContentToDB(message, source.userId);      
         return replyText(replyToken, replyMessage);
     }
   } catch(err){
@@ -362,7 +364,7 @@ async function handleText(message, replyToken, source) {
     return replyText(replyToken, "Server error! 系統錯誤！");
   }  
 }
-async function handleImage(message, replyToken) {
+async function handleImage(message, replyToken, source) {
   function sendReply(originalContentUrl, previewImageUrl) {
     return client.replyMessage({
       replyToken,
@@ -387,7 +389,7 @@ async function handleImage(message, replyToken) {
         "downloaded",
         `${message.id}-preview.jpg`
       );
-      await saveContentToS3(messageType.IMAGE, message.id, downloadPath);
+      await saveContentToS3(messageType.IMAGE, message.id, downloadPath, source.userId);
     }
     return replyText(replyToken, "images are saved.");
   } catch (err) {
@@ -395,7 +397,7 @@ async function handleImage(message, replyToken) {
     return replyText(replyToken, "images fail to save.");
   }
 }
-async function handleVideo(message, replyToken) {
+async function handleVideo(message, replyToken, source) {
   function sendReply(originalContentUrl, previewImageUrl) {
     return client.replyMessage({
       replyToken,
@@ -420,7 +422,7 @@ async function handleVideo(message, replyToken) {
         "downloaded",
         `${message.id}-preview.jpg`
       );
-      await saveContentToS3(messageType.VIDEO, message.id, downloadPath);
+      await saveContentToS3(messageType.VIDEO, message.id, downloadPath, source.userId);
 
       return replyText(replyToken, "videos are saved.");
     }
@@ -430,53 +432,82 @@ async function handleVideo(message, replyToken) {
   }
 }
 
-async function saveContentToS3(messageType, messageId, downloadPath) {
+async function saveContentToS3(messageType, messageId, downloadPath, lineId) {
   const stream = await blobClient.getMessageContent(messageId);
   const filepath = new Date().toISOString().slice(0, 10);
   const filename = `${filepath}/${messageId}`;
   const filetype = getFileMimeType(path.extname(downloadPath));
+  const trainFile= `default/defaultTrain`;
+  
+  const testLINE = (process.env.DEFAULT_LINE_USER == "")? lineId : process.env.DEFAULT_LINE_USER;
+  const { userId } = await getUserIdAndBabyId(funcDB.GET_USERID, testLINE);
 
-  let babyId = process.env.DEFAULT_BABY_ID;
-  // if( babyId === ""){
-  //   const resultAI = await invokeLambdaAI(
-  //     funcDB.SET_IMAGE,
-  //     userId,
-  //     babyId,
-  //     messageType,
-  //     filepath,
-  //     filename
-  //   );
-  //   if (resultAI.statusCode != 200) {
-  //     console.log("LambdaAI result: %j", result);
-  //     throw new Error("AI Face Recognition Fail");
-  //   }
-  //   babyId = resultAI.babyIds; //可能是多人合照
-  // }
-  const awsResult = await putStreamImageS3(stream, `${babyId}/${filename}`, filetype);
+  if ( userId === undefined ){
+    return `僅小時光LINE登入用戶可使用照片上傳功能!`;
+  }
+  //pass to ec2 to python face_recognition
+  // //pass user follows babys as reference
+  const awsResult = await putStreamImageS3(stream, trainFile, filetype);
   if (awsResult.$metadata.httpStatusCode !== 200) {
     console.log("S3 result: %j", awsResult);
     throw new Error("image upload to S3 failed!");
   }
+  await postFilePathToServer(userId, filename, messageType);
   
-  const result = await invokeLambdaDB(
-    funcDB.SET_IMAGE,
-    userId,
-    babyId,
-    messageType,
-    filepath,
-    filename
-  );
-  if (result.statusCode != 200) {
-    console.log("LambdaDB result: %j", result);
-    throw new Error("Insert to DB failed!");
-  }
 }
-async function saveContentToDB(message){
+async function saveContentToDB(message, lineId){
   let [head, ...body] = message.text.split(" ");
   const title = getBabyActivity(head);
-  const content = body.join(" ");
-  const babyId = process.env.DEFAULT_BABY_ID || 0;
+  const record = body.join(" ");
 
+  if(title === babyActivity.ERROR){
+    return returnCommandGuide();
+  }
+  const testLINE = (process.env.DEFAULT_LINE_USER == "")? lineId : process.env.DEFAULT_LINE_USER;
+  const { userId, babyList } = await getUserIdAndBabyId(funcDB.GET_MAIN_BABYS, testLINE);
+  
+  if ( userId === undefined ){
+    return `僅小時光LINE登入照護權限用戶可使用紀錄功能!`;
+  }
+  const managerBabys = babyList.filter( baby => 
+    baby.babyRole == 'manager'
+  );
+
+  let babyId = "";
+  let content = "";
+  if ( managerBabys.length === 0 ) {
+    return `僅照護者權限可使用紀錄功能!`;
+  } else if (managerBabys.length === 1) {
+    if(title != babyActivity.DIARY && isNaN(Number(record))){
+      return `請輸入正確的寶寶紀錄數值!`;
+    }
+    if(record > 200){
+      return `寶寶日誌超過200字數`;
+    }
+    babyId = managerBabys[0].babyId;
+    content = record;
+  } else { //multi manager babys
+    const [index, ...body2] = record.split(" ");
+    const babyIdx = Number(index);
+    const textRecord = body2.join(" ");
+    if (isNaN(babyIdx) || !Number.isInteger(babyIdx) || babyIdx > managerBabys.length){
+      const msgFormat =
+      `
+      請參考以下範例\n
+      老大喝奶：M 1 160\n
+      老二喝奶：M 2 100\n
+      `;
+      return `多個照護寶寶，請指定寶寶代碼!\n ${msgFormat}`;
+    }
+    if(title != babyActivity.DIARY && isNaN(Number(textRecord))){
+      return `請輸入正確的寶寶紀錄數值!`;
+    }
+    if(textRecord > 200){
+      return `寶寶日誌超過200字數`;
+    }
+    babyId = managerBabys[babyIdx - 1].babyId;
+    content = textRecord;
+  }
   switch (title) {
     case babyActivity.MILK:
     case babyActivity.FOOD:
@@ -484,7 +515,6 @@ async function saveContentToDB(message){
     case babyActivity.HEIGHT:
     case babyActivity.WEIGHT:
     case babyActivity.MEDICINE:
-      console.log("daily");
       const dailyResult = await invokeLambdaDB(
         funcDB.SET_DAILY,
         userId,
@@ -499,7 +529,6 @@ async function saveContentToDB(message){
       }
       return `${title} 紀錄完成！`;
     case babyActivity.DIARY:
-      console.log("text");
       const textResult = await invokeLambdaDB(
         funcDB.SET_TEXT,
         userId,
@@ -514,10 +543,9 @@ async function saveContentToDB(message){
       }
       return `${title} 紀錄完成！`;
     case babyActivity.ERROR:
-      return "Unknown activity! 紀錄輸入錯誤!";
+      return returnCommandGuide();
   }  
 }
-
 //===========================================
 //=========   AWS Lambda Function   =========
 //===========================================
@@ -538,6 +566,20 @@ async function invokeLambdaDB(funcDB, userId, babyId, type, title, content) {
   const command = new InvokeCommand(params);
   const response = await lambdaClient.send(command);
   return JSON.parse(new TextDecoder().decode(response.Payload));
+}
+async function getUserIdAndBabyId(funcDB, lineId) {
+  const result = await invokeLambdaDB( funcDB, lineId, 0, "", "", "");
+  if (result.statusCode != 200) {
+    console.log("LambdaDB result: %j", result);
+    throw new Error("Get BabyId from DB failed!");
+  }
+  const { babyResult } = JSON.parse(result.body);
+  if (babyResult.length === 0){
+    return { userId: undefined,  babyList: []};
+  }
+  const userId = babyResult[0].userId;
+  const babyList = babyResult[0].babys;
+  return { userId, babyList };
 }
 function getBabyActivity(title){
   const upper = title.toUpperCase();
@@ -588,31 +630,54 @@ function getBabyActivity(title){
       return babyActivity.ERROR;
   }
 }
+function returnCommandGuide(){
+    const msgFormat = 
+    `
+      牛奶(ml)：M 160\n
+      副食(ml)：F 50\n
+      睡覺(hr)：S 10\n
+      藥水(cc)：MED 3\n
+      身高(cm)：H 75\n
+      體重(kg)：W 6.5\n
+      日記：D 妹妹長牙了\n
+    `
+    return `紀錄輸入錯誤! 請依照範例輸入!\n ${msgFormat}`;
+}
 //===========================================
 //=========   AWS S3 Function   =============
 //===========================================
 async function putStreamImageS3(fileStream, filename, filetype) {
-  try {
-    const params = {
-      Bucket: bucketName,
-      Key: filename,
-      Body: fileStream,
-      ContentType: filetype
-    };
-    const parallelUploads3 = new Upload({
-      client: s3Client,
-      params: params
-    });
+  const params = {
+    Bucket: bucketName,
+    Key: filename,
+    Body: fileStream,
+    ContentType: filetype
+  };
+  const parallelUploads3 = new Upload({
+    client: s3Client,
+    params: params
+  });
 
-    parallelUploads3.on("httpUploadProgress", (progress) => {
-      // console.log(progress);
-    });
+  parallelUploads3.on("httpUploadProgress", (progress) => {
+    // console.log(progress);
+  });
 
-    const data = await parallelUploads3.done();
-    return data;
-  } catch (e) {
-    console.log(e);
-  }
+  const data = await parallelUploads3.done();
+  return data;
+}
+async function postFilePathToServer(userId, filePath, messageType){
+  
+  const url = `${process.env.PYTHON_FACE_VALID_URL}?user=${userId}&path=${filePath}&type=${messageType}`;
+  fetch(url)
+    .then((res) => res.json())
+    .then((data) => {
+      const { message } = data;
+      console.log(`server message: ${message}`);
+    })
+    .catch((err) => {
+      console.error(err);
+      throw new Error("Lambda to Server Error!");
+    });
 }
 function getFileMimeType(extname) {
   switch (extname) {
@@ -689,6 +754,8 @@ exports.handler = async (event) => {
     //     ]
     // }
   }
+  console.log("%j", event);
+  
   if (event.events.length == 0) {
     console.log("Line webhook Verify return statusCode 200");
     return { statusCode: 200, body: "" };
@@ -697,8 +764,7 @@ exports.handler = async (event) => {
     console.log("Destination ID: " + event.destination);
   }
   if(event.events[0].source.userId){
-    userId = event.events[0].source.userId;
-    console.log("Event Deliver (UserID): " + userId);
+    console.log("Event Deliver (UserID): " + event.events[0].source.userId);
   }
   if (!Array.isArray(event.events)) {
     return { statusCode: 500 };

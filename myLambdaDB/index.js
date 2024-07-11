@@ -5,6 +5,8 @@ const mysql = require("mysql2");
 const moment = require('moment');
 
 const funcDB = {
+  GET_MAIN_BABYS: "getMainBabys", //babyRole='manager'
+  GET_USERID: "getUserId",
   SET_IMAGE: "setImage",
   SET_TEXT: "setText",
   SET_DAILY: "setDaily"
@@ -48,9 +50,7 @@ async function setText(conn, userId, babyId, content, date = "") {
 }
 async function setBabyDaily(conn, userId, babyId, activity, quantity, date = "") {
   const activityDate = date == "" ? getLogTimeFormat() : date;
-  const week = moment(activityDate, 'YYYY-MM-DD').week();
-  console.log(activityDate);
-  console.log(week);
+  const week = moment(activityDate).week();
   const [rows] = await conn.query(
     `
       INSERT INTO babyDaily (userId, babyId, week, activity, quantity, timestamp)
@@ -61,19 +61,49 @@ async function setBabyDaily(conn, userId, babyId, activity, quantity, date = "")
   // console.log("setBabyDaily:" + JSON.stringify(rows));
   return rows.insertId;
 }
-async function getManagerBabyList(conn, userId){
-  const [rows] = await conn.query(
+async function getUserFollowsByLineID(conn, lineId){
+   const [rows] = await conn.query(
     `
-      SELECT babyId FROM follows where userId = ? AND babyRole = 'manager'
+      SELECT
+          follows.userId AS userId,
+          JSON_ARRAYAGG(
+              JSON_OBJECT(
+                  'babyId', follows.babyId,
+                  'babyRole', follows.babyRole
+              )
+          ) AS babys
+      FROM 
+          users
+      JOIN 
+          follows ON users.id = follows.userId
+      WHERE 
+          users.lineId = ? AND follows.babyRole = 'manager'
+      GROUP BY
+          follows.userId; 
     `,
-    [userId]
+    [lineId]
   );
   // console.log("getManagerBabyList:" + JSON.stringify(rows));
   return rows;
 }
+async function getUserIDByLineID(conn, lineId){
+  const [rows] = await conn.query(
+   `
+     SELECT
+         id AS userId         
+     FROM 
+         users
+     WHERE 
+         users.lineId = ? ; 
+   `,
+   [lineId]
+ );
+//  console.log("getManagerBabyList:" + JSON.stringify(rows[0]));
+ return rows;
+}
 function getLogTimeFormat() {
   //YYYY-MM-DD HH:mm:ss
-  return new Date().toLocaleString("af-ZA", { hour12: false });
+  return moment().utc().add(8, 'h').format('YYYY-MM-DD HH:mm:ss');
 }
 
 exports.handler = async (event) => {
@@ -91,12 +121,21 @@ exports.handler = async (event) => {
       funcDB: event.funcDB,
       insertId: -1
     };
+    
     if(event.userid === "" || Number(event.babyId) < 0){
       return { statusCode: 500, funcDB: event.funcDB, error: "Unknown userId or babyId" };
     }
-    if(Number(event.babyId) < 10 ){
-      const babyLists = await getManagerBabyList(conn, event.userid);
-      event.babyId = babyLists[Number(event.babyId)];
+    if(event.funcDB === funcDB.GET_USERID){
+      const lineId = event.userId;
+      const babyResult = await getUserIDByLineID(conn, lineId);
+      console.log(babyResult);
+      // const babyResult = { userId };
+      return { statusCode: 200, funcDB: event.funcDB, body: JSON.stringify({ babyResult }) };
+    }
+    if(event.funcDB === funcDB.GET_MAIN_BABYS){
+      const lineId = event.userId;
+      const babyResult = await getUserFollowsByLineID(conn, lineId);
+      return { statusCode: 200, funcDB: event.funcDB, body: JSON.stringify({ babyResult }) };
     }
     switch (event.funcDB) {
       case funcDB.SET_IMAGE:
