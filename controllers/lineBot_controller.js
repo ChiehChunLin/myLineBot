@@ -6,7 +6,6 @@ const { pipeline } = require("stream");
 const s3 = require("./awsS3_controller");
 const { conn } = require("../database/connDB");
 const imageDB = require("../database/imageDB");
-const { getCryptoID } = require("../utils/cryptoGenerator");
 const { getFormattedDate } = require("../utils/getFormattedDate");
 
 const baseURL = process.env.LINE_CHANNEL_BASE_URL;

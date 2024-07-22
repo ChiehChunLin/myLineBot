@@ -668,11 +668,23 @@ async function putStreamImageS3(fileStream, filename, filetype) {
 async function postFilePathToServer(userId, filePath, messageType){
   
   const url = `${process.env.PYTHON_FACE_VALID_URL}?user=${userId}&path=${filePath}&type=${messageType}`;
-  fetch(url)
+  const username = process.env.AWS_LAMBDA_USERNAME;
+  const password = process.env.AWS_LAMBDA_PASSWORD;
+  const config = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ username, password })
+  };
+  fetch(url, config)
     .then((res) => res.json())
     .then((data) => {
-      const { message } = data;
+      const { message, error } = data;
       console.log(`server message: ${message}`);
+      if(error){
+
+      }
     })
     .catch((err) => {
       console.error(err);
@@ -692,6 +704,7 @@ function getFileMimeType(extname) {
 
 exports.handler = async (event) => {
   {
+    // console.log("%j", event.Records[0].body);
     //============= webhook verify =============
     // event: {
     //     "destination": "U1e7165f3c3db2ce3142eb75643c61ec6",
@@ -754,23 +767,24 @@ exports.handler = async (event) => {
     //     ]
     // }
   }
-  console.log("%j", event);
+
+  const body = JSON.parse(event.Records[0].body);
   
-  if (event.events.length == 0) {
+  if (body.events.length == 0) {
     console.log("Line webhook Verify return statusCode 200");
     return { statusCode: 200, body: "" };
   }
-  if (event.destination) {    
-    console.log("Destination ID: " + event.destination);
+  if (body.destination) {    
+    console.log("Destination ID: " + body.destination);
   }
-  if(event.events[0].source.userId){
-    console.log("Event Deliver (UserID): " + event.events[0].source.userId);
+  if(body.events[0].source.userId){
+    console.log("Event Deliver (UserID): " + body.events[0].source.userId);
   }
-  if (!Array.isArray(event.events)) {
+  if (!Array.isArray(body.events)) {
     return { statusCode: 500 };
   }
   try {
-    const result = await Promise.all(event.events.map(handleEvent));
+    const result = await Promise.all(body.events.map(handleEvent));
     return { statusCode: 200, body: JSON.stringify(result) };
   } catch (err) {
     console.error(err);

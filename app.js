@@ -14,7 +14,7 @@ app.get("/", (req, res) => {
 });
 app.get("/s3", async (req, res) => {
   const imgUrl = lineBot.getImageUrl(
-    "2024-06-12/fd46dcc45497c2796141c479d7af62b3700fb332"
+    "FILE/PATH/TO/AWS_S3"
   );
   res.render("imageDisplay", { imgUrl });
 });
