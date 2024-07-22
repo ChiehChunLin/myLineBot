@@ -5,7 +5,7 @@
 The main job of a LINE Bot controller is handling line events and put messages of images, videos, texts to AWS S3 and AWS RDS. Then [myMoments](https://github.com/ChiehChunLin/myMoments) can deal with messages to show on the web pages.
 
 # Architecture
-![Architecture]()
+![Architecture](https://github.com/ChiehChunLin/myLineBot/blob/develop/project_architecture.jpg)
 
 # Structure
 
