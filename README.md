@@ -5,26 +5,26 @@
 The main job of a LINE Bot controller is handling line events and put messages of images, videos, texts to AWS S3 and AWS RDS. Then [myMoments](https://github.com/ChiehChunLin/myMoments) can deal with messages to show on the web pages.
 
 # Architecture
-![Architecture](https://github.com/ChiehChunLin/myLineBot/blob/develop/project_architecture.jpg)
+![myMoments_architecture](https://github.com/user-attachments/assets/7e7e1300-1857-46fd-8596-b75c597d2715)
 
 # Structure
 
 ```
 ├── controllers
 ├── database
-├── myLambdaDB
+├── myLambdaDB      (zip package for DB lambda)
 │ ├── .env.temp
 │ ├── index.js
 │ ├── package.json
 │ ├── package-lock.json
-├── myLambdaS3
+├── myLambdaS3      (zip package for S3 lambda)
 │ ├── .env.temp
 │ ├── index.js
 │ ├── package.json
 │ ├── package-lock.json
 ├── utils
 ├── views
-├── app.js
+├── app.js          (line bot server for testing)
 ├── node_modules
 ├── package.json
 ├── package-lock.json
